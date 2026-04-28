@@ -1,0 +1,2 @@
+# Repo root — ignore artifacts not covered by package-level rules
+.DS_Store
