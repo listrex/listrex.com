@@ -4,15 +4,54 @@ import { useState, type FormEvent } from "react";
 
 type ContactFormProps = {
   listingTitle: string;
+  listingSlug: string;
 };
 
-export function ContactForm({ listingTitle }: ContactFormProps) {
-  const [status, setStatus] = useState<"idle" | "sent">("idle");
+type Status =
+  | { kind: "idle" }
+  | { kind: "submitting" }
+  | { kind: "sent" }
+  | { kind: "error"; message: string };
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+export function ContactForm({ listingTitle, listingSlug }: ContactFormProps) {
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setStatus("sent");
+    if (status.kind === "submitting") return;
+    setStatus({ kind: "submitting" });
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const payload = {
+      name: String(formData.get("name") ?? "").trim(),
+      email: String(formData.get("email") ?? "").trim(),
+      phone: String(formData.get("phone") ?? "").trim() || undefined,
+      message: String(formData.get("message") ?? "").trim(),
+    };
+
+    try {
+      const res = await fetch(
+        `/api/listings/${encodeURIComponent(listingSlug)}/contact`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? `Request failed (${res.status})`);
+      }
+      form.reset();
+      setStatus({ kind: "sent" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not send message";
+      setStatus({ kind: "error", message });
+    }
   }
+
+  const submitting = status.kind === "submitting";
 
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
@@ -20,12 +59,12 @@ export function ContactForm({ listingTitle }: ContactFormProps) {
       <p className="mt-1 text-sm text-[var(--muted)]">
         About: <span className="text-[var(--foreground)]">{listingTitle}</span>
       </p>
-      {status === "sent" ? (
+      {status.kind === "sent" ? (
         <p className="mt-4 rounded-lg bg-[var(--muted-bg)] px-3 py-2 text-sm text-[var(--foreground)]">
-          Thanks — when the API is connected, this message will be sent to the listing owner.
+          Thanks — your message has been sent to the listing owner.
         </p>
       ) : (
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-3" noValidate>
           <div>
             <label htmlFor="contact-name" className="sr-only">
               Name
@@ -79,11 +118,17 @@ export function ContactForm({ listingTitle }: ContactFormProps) {
               className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
             />
           </div>
+          {status.kind === "error" ? (
+            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+              {status.message}
+            </p>
+          ) : null}
           <button
             type="submit"
-            className="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            disabled={submitting}
+            className="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           >
-            Send message
+            {submitting ? "Sending…" : "Send message"}
           </button>
         </form>
       )}

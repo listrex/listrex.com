@@ -1,5 +1,5 @@
 import { ListingCard } from "@/components/listings/listing-card";
-import { filterListings } from "@/lib/data/mock-listings";
+import { searchListings } from "@/lib/data/listings";
 
 type SearchParams = Promise<{ q?: string }>;
 
@@ -10,7 +10,14 @@ export default async function ListingsPage({
 }) {
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q : "";
-  const listings = filterListings(query);
+  let listings: Awaited<ReturnType<typeof searchListings>> = [];
+  let loadError = false;
+  try {
+    listings = await searchListings({ query });
+  } catch (err) {
+    console.error("Listings page: searchListings failed", err);
+    loadError = true;
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -19,11 +26,11 @@ export default async function ListingsPage({
           Listings
         </h1>
         <p className="mt-2 max-w-2xl text-[var(--muted)]">
-          Demo results from mock data. Replace with API calls using{" "}
+          Results come from the Osclass REST API when{" "}
           <code className="rounded bg-[var(--muted-bg)] px-1 py-0.5 font-mono text-xs">
-            NEXT_PUBLIC_API_URL
-          </code>
-          .
+            OSCLASS_API_BASE_URL
+          </code>{" "}
+          is configured; otherwise mock data is shown.
         </p>
       </header>
 
@@ -47,7 +54,11 @@ export default async function ListingsPage({
         </button>
       </form>
 
-      {listings.length === 0 ? (
+      {loadError ? (
+        <p className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-[var(--muted)]">
+          Could not load listings right now. Please try again shortly.
+        </p>
+      ) : listings.length === 0 ? (
         <p className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-[var(--muted)]">
           No listings match your search.
         </p>
