@@ -1,7 +1,14 @@
 import "server-only";
 
 import { getOsclassConfig, type OsclassConfig } from "./env";
-import type { OsclassItem, OsclassListResponse } from "./types";
+import type {
+  OsclassCategory,
+  OsclassCity,
+  OsclassCountry,
+  OsclassCurrency,
+  OsclassItem,
+  OsclassRegion,
+} from "./types";
 
 /**
  * Server-side client for the Osclass REST API plugin.
@@ -47,7 +54,12 @@ type Operation =
   | { kind: "listItems"; query?: string; city?: string; region?: string; categoryId?: number; page?: number; pageSize?: number }
   | { kind: "getItem"; id: string | number }
   | { kind: "contactItem"; id: string | number; name: string; email: string; phone?: string; message: string }
-  | { kind: "createItem"; title: string; description: string; price: number; currency: string; city: string; region: string; categoryId?: number; contactName: string; contactEmail: string };
+  | { kind: "createItem"; title: string; description: string; price: number; currency: string; city: string; region: string; categoryId?: number; contactName: string; contactEmail: string }
+  | { kind: "listRegions"; countryCode?: string }
+  | { kind: "listCountries" }
+  | { kind: "listCities"; regionId?: number | string }
+  | { kind: "listCurrencies" }
+  | { kind: "categoryTree" };
 
 type BuiltRequest = {
   url: URL;
@@ -147,6 +159,8 @@ const flavorBase: Flavor = {
           }),
         };
       }
+      default:
+        return null;
     }
   },
 };
@@ -209,6 +223,8 @@ function rewriteFlavor(version: 1 | 2 | 3): Flavor {
             }),
           };
         }
+        default:
+          return null;
       }
     },
   };
@@ -268,6 +284,8 @@ const flavorIndexPhpApi: Flavor = {
             showEmail: 0,
           }),
         };
+      default:
+        return null;
     }
   },
 };
@@ -324,6 +342,8 @@ const flavorAjaxOcRest: Flavor = {
             showEmail: 0,
           }),
         };
+      default:
+        return null;
     }
   },
 };
@@ -406,6 +426,41 @@ const flavorOsclassPoint: Flavor = {
           body: form.toString(),
         };
       }
+      case "listRegions": {
+        u.searchParams.set("type", "read");
+        u.searchParams.set("object", "region");
+        u.searchParams.set("action", "listAll");
+        if (op.countryCode) u.searchParams.set("countryCode", op.countryCode);
+        return { url: u, method: "GET", headers: { Accept: "application/json" } };
+      }
+      case "listCountries": {
+        u.searchParams.set("type", "read");
+        u.searchParams.set("object", "country");
+        u.searchParams.set("action", "listAll");
+        return { url: u, method: "GET", headers: { Accept: "application/json" } };
+      }
+      case "listCities": {
+        u.searchParams.set("type", "read");
+        u.searchParams.set("object", "city");
+        u.searchParams.set("action", "listAll");
+        if (op.regionId !== undefined) u.searchParams.set("regionId", String(op.regionId));
+        return { url: u, method: "GET", headers: { Accept: "application/json" } };
+      }
+      case "listCurrencies": {
+        // NOTE: The OsclassPoint plugin uses the plural object name for the
+        // currencies list (`object=currencies`) but singular for byId
+        // (`object=currency`). Quirky but verified live.
+        u.searchParams.set("type", "read");
+        u.searchParams.set("object", "currencies");
+        u.searchParams.set("action", "listAll");
+        return { url: u, method: "GET", headers: { Accept: "application/json" } };
+      }
+      case "categoryTree": {
+        u.searchParams.set("type", "read");
+        u.searchParams.set("object", "category");
+        u.searchParams.set("action", "tree");
+        return { url: u, method: "GET", headers: { Accept: "application/json" } };
+      }
     }
   },
 };
@@ -445,7 +500,15 @@ type FetchResult =
   | { ok: true; status: number; json: unknown; text: string }
   | { ok: false; status: number; reason: string; text: string };
 
-async function fetchOnce(req: BuiltRequest, timeoutMs = 7000): Promise<FetchResult> {
+type FetchPolicy =
+  | { kind: "no-store" }
+  | { kind: "revalidate"; seconds: number };
+
+async function fetchOnce(
+  req: BuiltRequest,
+  timeoutMs = 7000,
+  policy: FetchPolicy = { kind: "no-store" }
+): Promise<FetchResult> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -453,13 +516,18 @@ async function fetchOnce(req: BuiltRequest, timeoutMs = 7000): Promise<FetchResu
     for (const [k, v] of Object.entries(req.headers)) {
       if (typeof v === "string") headers[k] = v;
     }
-    const res = await fetch(req.url, {
+    const init: RequestInit & { next?: { revalidate?: number } } = {
       method: req.method,
       headers,
       body: req.body,
-      cache: "no-store",
       signal: ctrl.signal,
-    });
+    };
+    if (policy.kind === "revalidate") {
+      init.next = { revalidate: policy.seconds };
+    } else {
+      init.cache = "no-store";
+    }
+    const res = await fetch(req.url, init);
     const text = await res.text();
     if (!text) {
       if (!res.ok) return { ok: false, status: res.status, reason: `HTTP ${res.status}`, text };
@@ -588,6 +656,19 @@ export class OsclassUnsupportedOperationError extends Error {
   }
 }
 
+/**
+ * Reference data (regions, countries, cities, categories, currencies)
+ * changes rarely. Cache server-side for 1h via Next.js's revalidate hint
+ * so repeated SSR navigations don't hammer Osclass.
+ */
+const REFERENCE_OPS: ReadonlySet<Operation["kind"]> = new Set([
+  "listRegions",
+  "listCountries",
+  "listCities",
+  "listCurrencies",
+  "categoryTree",
+]);
+
 async function call(op: Operation): Promise<unknown> {
   const cfg = getOsclassConfig();
   if (!cfg) throw new OsclassNotConfiguredError();
@@ -596,7 +677,10 @@ async function call(op: Operation): Promise<unknown> {
   if (!built) {
     throw new OsclassUnsupportedOperationError(flavor.id, op.kind);
   }
-  const result = await fetchOnce(built, 10_000);
+  const policy: FetchPolicy = REFERENCE_OPS.has(op.kind)
+    ? { kind: "revalidate", seconds: 3600 }
+    : { kind: "no-store" };
+  const result = await fetchOnce(built, 10_000, policy);
   if (!result.ok) {
     if (flavorCache?.kind === "ok" && flavorCache.flavorId === flavor.id) {
       flavorCache = null;
@@ -690,5 +774,35 @@ export const osclass = {
   }): Promise<OsclassItem | undefined> {
     const payload = await call({ kind: "createItem", ...input });
     return unwrapItem<OsclassItem>(payload);
+  },
+
+  async listRegions(input: { countryCode?: string } = {}): Promise<OsclassRegion[]> {
+    const payload = await call({ kind: "listRegions", ...input });
+    return unwrapList<OsclassRegion>(payload);
+  },
+
+  async listCountries(): Promise<OsclassCountry[]> {
+    const payload = await call({ kind: "listCountries" });
+    return unwrapList<OsclassCountry>(payload);
+  },
+
+  async listCities(input: { regionId?: number | string } = {}): Promise<OsclassCity[]> {
+    const payload = await call({ kind: "listCities", ...input });
+    const all = unwrapList<OsclassCity>(payload);
+    // The OsclassPoint plugin returns the full city list regardless of
+    // regionId. Apply the filter on the client side.
+    if (input.regionId === undefined) return all;
+    const want = String(input.regionId);
+    return all.filter((c) => String(c.fk_i_region_id ?? "") === want);
+  },
+
+  async listCurrencies(): Promise<OsclassCurrency[]> {
+    const payload = await call({ kind: "listCurrencies" });
+    return unwrapList<OsclassCurrency>(payload);
+  },
+
+  async categoryTree(): Promise<OsclassCategory[]> {
+    const payload = await call({ kind: "categoryTree" });
+    return unwrapList<OsclassCategory>(payload);
   },
 };

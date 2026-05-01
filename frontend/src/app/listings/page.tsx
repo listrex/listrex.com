@@ -1,7 +1,8 @@
 import { ListingCard } from "@/components/listings/listing-card";
 import { searchListings } from "@/lib/data/listings";
+import { listRegions } from "@/lib/data/locations";
 
-type SearchParams = Promise<{ q?: string }>;
+type SearchParams = Promise<{ q?: string; region?: string }>;
 
 export default async function ListingsPage({
   searchParams,
@@ -10,8 +11,17 @@ export default async function ListingsPage({
 }) {
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q : "";
-  const result = await searchListings({ query });
-  const { listings, source } = result;
+  const region = typeof params.region === "string" ? params.region : "";
+
+  const [searchResult, regionsResult] = await Promise.all([
+    searchListings({ query, region: region || undefined }),
+    listRegions(),
+  ]);
+  const { listings, source } = searchResult;
+  const activeRegions = regionsResult.items.filter((r) => {
+    const active = r.b_active;
+    return active === undefined || active === 1 || active === "1" || active === true;
+  });
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -19,9 +29,20 @@ export default async function ListingsPage({
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-medium text-[var(--foreground)]">
           Listings
         </h1>
-        {query ? (
+        {query || region ? (
           <p className="mt-2 text-sm text-[var(--muted)]">
-            Showing results for <span className="text-[var(--foreground)]">“{query}”</span>
+            {query ? (
+              <>
+                Showing results for{" "}
+                <span className="text-[var(--foreground)]">“{query}”</span>
+              </>
+            ) : null}
+            {query && region ? " · " : null}
+            {region ? (
+              <>
+                in <span className="text-[var(--foreground)]">{region}</span>
+              </>
+            ) : null}
           </p>
         ) : null}
       </header>
@@ -35,7 +56,11 @@ export default async function ListingsPage({
         </div>
       ) : null}
 
-      <form method="get" action="/listings" className="mb-8 flex gap-2">
+      <form
+        method="get"
+        action="/listings"
+        className="mb-8 grid gap-2 sm:grid-cols-[1fr_220px_auto]"
+      >
         <label htmlFor="search-q" className="sr-only">
           Search listings
         </label>
@@ -44,9 +69,26 @@ export default async function ListingsPage({
           name="q"
           type="search"
           defaultValue={query}
-          placeholder="City, keywords…"
-          className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
+          placeholder="Keywords…"
+          className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
         />
+        <label htmlFor="search-region" className="sr-only">
+          Region
+        </label>
+        <select
+          id="search-region"
+          name="region"
+          defaultValue={region}
+          disabled={activeRegions.length === 0}
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--foreground)] disabled:opacity-60"
+        >
+          <option value="">All regions</option>
+          {activeRegions.map((r) => (
+            <option key={String(r.pk_i_id)} value={r.s_name ?? ""}>
+              {r.s_name}
+            </option>
+          ))}
+        </select>
         <button
           type="submit"
           className="shrink-0 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
@@ -57,7 +99,7 @@ export default async function ListingsPage({
 
       {listings.length === 0 ? (
         <p className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-[var(--muted)]">
-          {query
+          {query || region
             ? "No listings match your search."
             : "No listings yet — check back soon."}
         </p>

@@ -85,6 +85,11 @@ production traffic.
 | `GET  /api/listings`                  | Search JSON: `?q=`, `?city=`, `?region=`, paging     |
 | `GET  /api/listings/[slug]`           | Single listing JSON                                  |
 | `POST /api/listings/[slug]/contact`   | Send a lead to the listing owner                     |
+| `GET  /api/locations/regions`         | Regions in your Osclass DB (optional `?countryCode=`)|
+| `GET  /api/locations/countries`       | Countries enabled in admin                           |
+| `GET  /api/locations/cities`          | Cities (optional client-side `?regionId=` filter)    |
+| `GET  /api/categories`                | Category tree                                        |
+| `GET  /api/osclass/health`            | Plugin diagnostics (active flavor, sample keys, …)   |
 
 ## Where the integration lives
 
