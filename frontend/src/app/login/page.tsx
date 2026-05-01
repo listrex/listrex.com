@@ -11,8 +11,7 @@ export default function LoginPage() {
         Log in
       </h1>
       <p className="mt-2 text-sm text-[var(--muted)]">
-        Authentication will use your custom API (sessions or JWT per{" "}
-        <span className="text-[var(--foreground)]">docs/architecture.md</span>).
+        Welcome back. Sign in to manage your listings and saved searches.
       </p>
       <form className="mt-8 space-y-4" action="#" method="post">
         <div>

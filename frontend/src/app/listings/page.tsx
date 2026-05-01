@@ -25,13 +25,11 @@ export default async function ListingsPage({
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-medium text-[var(--foreground)]">
           Listings
         </h1>
-        <p className="mt-2 max-w-2xl text-[var(--muted)]">
-          Results come from the Osclass REST API when{" "}
-          <code className="rounded bg-[var(--muted-bg)] px-1 py-0.5 font-mono text-xs">
-            OSCLASS_API_BASE_URL
-          </code>{" "}
-          is configured; otherwise mock data is shown.
-        </p>
+        {query ? (
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Showing results for <span className="text-[var(--foreground)]">“{query}”</span>
+          </p>
+        ) : null}
       </header>
 
       <form method="get" action="/listings" className="mb-8 flex gap-2">
