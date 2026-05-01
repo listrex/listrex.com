@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchListings } from "@/lib/data/listings";
-import { maybeDebug } from "@/lib/osclass/error";
+import { isOsclassDebugEnabled } from "@/lib/osclass/env";
 
 export const runtime = "nodejs";
 
@@ -13,14 +13,18 @@ export async function GET(request: Request) {
   const pageSize = numberParam(url.searchParams.get("pageSize"));
 
   try {
-    const listings = await searchListings({ query: q, city, region, page, pageSize });
-    return NextResponse.json({ listings });
+    const result = await searchListings({ query: q, city, region, page, pageSize });
+    const debug = isOsclassDebugEnabled() && result.fallbackReason
+      ? { debug: { fallbackReason: result.fallbackReason } }
+      : {};
+    return NextResponse.json({
+      listings: result.listings,
+      source: result.source,
+      ...debug,
+    });
   } catch (err) {
     console.error("[/api/listings] search failed", err);
-    return NextResponse.json(
-      { error: "Search failed", ...maybeDebug(err) },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Search failed" }, { status: 502 });
   }
 }
 

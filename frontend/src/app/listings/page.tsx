@@ -10,18 +10,12 @@ export default async function ListingsPage({
 }) {
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q : "";
-  let listings: Awaited<ReturnType<typeof searchListings>> = [];
-  let loadError = false;
-  try {
-    listings = await searchListings({ query });
-  } catch (err) {
-    console.error("Listings page: searchListings failed", err);
-    loadError = true;
-  }
+  const result = await searchListings({ query });
+  const { listings, source } = result;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <header className="mb-8">
+      <header className="mb-6">
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-medium text-[var(--foreground)]">
           Listings
         </h1>
@@ -31,6 +25,15 @@ export default async function ListingsPage({
           </p>
         ) : null}
       </header>
+
+      {source === "mock-fallback" ? (
+        <div
+          role="status"
+          className="mb-6 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          Live listings are temporarily unavailable. Showing example properties while we reconnect.
+        </div>
+      ) : null}
 
       <form method="get" action="/listings" className="mb-8 flex gap-2">
         <label htmlFor="search-q" className="sr-only">
@@ -52,11 +55,7 @@ export default async function ListingsPage({
         </button>
       </form>
 
-      {loadError ? (
-        <p className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-[var(--muted)]">
-          Could not load listings right now. Please try again shortly.
-        </p>
-      ) : listings.length === 0 ? (
+      {listings.length === 0 ? (
         <p className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-[var(--muted)]">
           No listings match your search.
         </p>

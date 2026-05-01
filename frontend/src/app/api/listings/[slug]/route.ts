@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getListing } from "@/lib/data/listings";
-import { maybeDebug } from "@/lib/osclass/error";
+import { isOsclassDebugEnabled } from "@/lib/osclass/env";
 
 export const runtime = "nodejs";
 
@@ -10,14 +10,20 @@ export async function GET(
 ) {
   const { slug } = await params;
   try {
-    const listing = await getListing(slug);
-    if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({ listing });
+    const result = await getListing(slug);
+    if (!result.listing) {
+      return NextResponse.json({ error: "Not found", source: result.source }, { status: 404 });
+    }
+    const debug = isOsclassDebugEnabled() && result.fallbackReason
+      ? { debug: { fallbackReason: result.fallbackReason } }
+      : {};
+    return NextResponse.json({
+      listing: result.listing,
+      source: result.source,
+      ...debug,
+    });
   } catch (err) {
     console.error("[/api/listings/:slug] failed", err);
-    return NextResponse.json(
-      { error: "Lookup failed", ...maybeDebug(err) },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Lookup failed" }, { status: 502 });
   }
 }

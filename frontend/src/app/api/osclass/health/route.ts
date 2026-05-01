@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server";
 import { getOsclassConfig, isOsclassDebugEnabled } from "@/lib/osclass/env";
-import { osclass, OsclassApiError } from "@/lib/osclass/client";
+import { osclass, OsclassApiError, OsclassNoFlavorError } from "@/lib/osclass/client";
 import { describeError } from "@/lib/osclass/error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Diagnostics endpoint: returns whether Osclass is configured, what host
- * the configured URL points at (no key leakage), and the result of one
- * minimal `listItems` call. Detailed upstream body is only included when
+ * Diagnostics endpoint: tells you whether Osclass is configured, the
+ * configured host (no key leakage), and the result of one minimal
+ * `listItems` call. Detailed upstream body is only included when
  * OSCLASS_DEBUG=1 is set on the server.
  *
- * Safe to expose: never returns the API key, and only echoes the
- * configured host/protocol, not the full URL or query.
+ * Safe to expose: never returns the API key or full URL with key, only the
+ * configured host/protocol.
  */
 export async function GET() {
   const cfg = getOsclassConfig();
@@ -50,6 +50,7 @@ export async function GET() {
     defaultCategoryId: cfg.defaultCategoryId,
     apiKeyLength: cfg.apiKey.length,
     debugMode: debug,
+    forcedFlavor: process.env.OSCLASS_API_FLAVOR ?? null,
   };
 
   const started = Date.now();
@@ -58,6 +59,7 @@ export async function GET() {
     return NextResponse.json({
       ...meta,
       ok: true,
+      activeFlavor: osclass.getActiveFlavorId(),
       durationMs: Date.now() - started,
       itemsReturned: items.length,
       sampleKeys:
@@ -68,13 +70,18 @@ export async function GET() {
   } catch (err) {
     const desc = describeError(err);
     const status = err instanceof OsclassApiError ? err.status : undefined;
+    const triedFlavors =
+      err instanceof OsclassNoFlavorError ? err.attempts : undefined;
     return NextResponse.json(
       {
         ...meta,
         ok: false,
         durationMs: Date.now() - started,
         upstreamStatus: status,
-        ...(debug ? { debug: desc } : { error: typeof desc.message === "string" ? desc.message : desc.kind }),
+        triedFlavors,
+        ...(debug
+          ? { debug: desc }
+          : { error: typeof desc.message === "string" ? desc.message : desc.kind }),
       },
       { status: 502 }
     );

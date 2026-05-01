@@ -33,8 +33,20 @@ npm run lint
    - `OSCLASS_PAGE_SIZE` — *(optional)* default page size, capped at 50
 3. Restart `npm run dev`.
 
-If `OSCLASS_API_BASE_URL` and `OSCLASS_API_KEY` are not set, the app falls
-back to the built-in mock listings so UI work is never blocked.
+If `OSCLASS_API_BASE_URL` and `OSCLASS_API_KEY` are not set — **or** if
+they're set but the Osclass REST plugin isn't yet reachable (e.g. plugin not
+enabled in admin) — the app falls back to the built-in mock listings and
+shows a small "Live listings are temporarily unavailable" banner instead of
+erroring out. UI work is never blocked.
+
+### URL conventions
+
+Different REST plugins for Osclass expose themselves at different URLs. On
+the first request the server probes a short list of known patterns (see
+`OSCLASS_API_FLAVOR` in `.env.example`), picks the one that returns valid
+JSON, and caches it in process memory. Once you know which one your
+install uses, you can pin it via `OSCLASS_API_FLAVOR=<id>` to skip
+auto-detection.
 
 ### Diagnostics
 
