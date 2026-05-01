@@ -33,8 +33,45 @@ npm run lint
    - `OSCLASS_PAGE_SIZE` — *(optional)* default page size, capped at 50
 3. Restart `npm run dev`.
 
-If `OSCLASS_API_BASE_URL` and `OSCLASS_API_KEY` are not set, the app falls
-back to the built-in mock listings so UI work is never blocked.
+If `OSCLASS_API_BASE_URL` and `OSCLASS_API_KEY` are not set — **or** if
+they're set but the Osclass REST plugin isn't yet reachable (e.g. plugin not
+enabled in admin) — the app falls back to the built-in mock listings and
+shows a small "Live listings are temporarily unavailable" banner instead of
+erroring out. UI work is never blocked.
+
+### URL conventions ("flavors")
+
+Different REST plugins for Osclass expose themselves at different URLs. On
+the first request the server probes a short list of known patterns (see
+`OSCLASS_API_FLAVOR` in `.env.example`), picks the one that returns a
+valid JSON list response, and caches it in process memory. Once you know
+which one your install uses, you can pin it via `OSCLASS_API_FLAVOR=<id>`
+to skip auto-detection.
+
+The current default-tested flavor is **`osclasspoint`** — the
+[OsclassPoint "Rest API Osclass Plugin"](https://osclasspoint.com/osclass-plugins/seo-speed-admin/rest-api-osclass-plugin-i114)
+(folder name: `rest`, entry: `oc-content/plugins/rest/api.php`).
+Its scheme is:
+
+```
+GET <origin>/oc-content/plugins/rest/api.php
+    ?key=<API_KEY>
+    &type=read|insert|update|delete
+    &object=<resource>     (search, item, items, currencies, region, ...)
+    &action=<verb>         (items, latestItems, byId, byCategoryId, ...)
+    &<extra>               (itemId, categoryId, sCity, sPattern, ...)
+```
+
+with envelope `{ status, message, block_id, execution_seconds, response }`.
+
+### Diagnostics
+
+`GET /api/osclass/health` reports whether Osclass is configured, the
+configured host (no key leakage), and the result of one minimal upstream
+call. Set `OSCLASS_DEBUG=1` on the server to also include the upstream
+status code and a short body excerpt in error responses from
+`/api/listings*` and `/api/osclass/health`. Leave it unset in normal
+production traffic.
 
 ## Routes (MVP)
 
@@ -48,6 +85,11 @@ back to the built-in mock listings so UI work is never blocked.
 | `GET  /api/listings`                  | Search JSON: `?q=`, `?city=`, `?region=`, paging     |
 | `GET  /api/listings/[slug]`           | Single listing JSON                                  |
 | `POST /api/listings/[slug]/contact`   | Send a lead to the listing owner                     |
+| `GET  /api/locations/regions`         | Regions in your Osclass DB (optional `?countryCode=`)|
+| `GET  /api/locations/countries`       | Countries enabled in admin                           |
+| `GET  /api/locations/cities`          | Cities (optional client-side `?regionId=` filter)    |
+| `GET  /api/categories`                | Category tree                                        |
+| `GET  /api/osclass/health`            | Plugin diagnostics (active flavor, sample keys, …)   |
 
 ## Where the integration lives
 

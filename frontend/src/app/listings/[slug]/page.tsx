@@ -17,7 +17,7 @@ function formatPrice(price: number, currency: string) {
 export async function generateMetadata({ params }: { params: Params }) {
   const { slug } = await params;
   try {
-    const listing = await getListing(slug);
+    const { listing } = await getListing(slug);
     if (!listing) return { title: "Not found" };
     return {
       title: listing.title,
@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: { params: Params }) {
 
 export default async function ListingDetailPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const listing = await getListing(slug);
+  const { listing, source } = await getListing(slug);
   if (!listing) notFound();
 
   return (
@@ -40,6 +40,15 @@ export default async function ListingDetailPage({ params }: { params: Params }) 
           ← All listings
         </Link>
       </nav>
+
+      {source === "mock-fallback" ? (
+        <div
+          role="status"
+          className="mb-6 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          Live listings are temporarily unavailable. Showing an example property while we reconnect.
+        </div>
+      ) : null}
 
       <div className="grid gap-10 lg:grid-cols-[1fr_380px] lg:items-start">
         <div>

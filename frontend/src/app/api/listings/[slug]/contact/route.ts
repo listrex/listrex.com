@@ -41,8 +41,8 @@ export async function POST(
   }
 
   try {
-    await sendListingContact(slug, { name, email, phone, message });
-    return NextResponse.json({ ok: true });
+    const result = await sendListingContact(slug, { name, email, phone, message });
+    return NextResponse.json({ ok: true, source: result.source });
   } catch (err) {
     console.error("[/api/listings/:slug/contact] failed", err);
     return NextResponse.json({ error: "Failed to send message" }, { status: 502 });

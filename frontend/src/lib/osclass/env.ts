@@ -33,3 +33,10 @@ export function getOsclassConfig(): OsclassConfig | undefined {
 export function isOsclassConfigured(): boolean {
   return Boolean(getOsclassConfig());
 }
+
+export function isOsclassDebugEnabled(): boolean {
+  const raw = process.env.OSCLASS_DEBUG;
+  if (!raw) return false;
+  const v = raw.toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
