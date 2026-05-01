@@ -1,6 +1,11 @@
 import "server-only";
 
-import { osclass, OsclassNoFlavorError, OsclassApiError } from "@/lib/osclass/client";
+import {
+  osclass,
+  OsclassNoFlavorError,
+  OsclassApiError,
+  OsclassUnsupportedOperationError,
+} from "@/lib/osclass/client";
 import { osclassToListing } from "@/lib/osclass/normalize";
 import { isOsclassConfigured } from "@/lib/osclass/env";
 import type { Listing } from "@/lib/types/listing";
@@ -115,6 +120,9 @@ function extractTrailingId(slug: string): string | undefined {
 function describeFallback(err: unknown): string {
   if (err instanceof OsclassNoFlavorError) {
     return `no-working-flavor: ${err.attempts.map((a) => `${a.flavor}=${a.reason}`).join(",")}`;
+  }
+  if (err instanceof OsclassUnsupportedOperationError) {
+    return `unsupported-by-flavor: ${err.message}`;
   }
   if (err instanceof OsclassApiError) {
     return `upstream-${err.status || "error"}`;

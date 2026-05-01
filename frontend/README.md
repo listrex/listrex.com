@@ -39,14 +39,30 @@ enabled in admin) — the app falls back to the built-in mock listings and
 shows a small "Live listings are temporarily unavailable" banner instead of
 erroring out. UI work is never blocked.
 
-### URL conventions
+### URL conventions ("flavors")
 
 Different REST plugins for Osclass expose themselves at different URLs. On
 the first request the server probes a short list of known patterns (see
-`OSCLASS_API_FLAVOR` in `.env.example`), picks the one that returns valid
-JSON, and caches it in process memory. Once you know which one your
-install uses, you can pin it via `OSCLASS_API_FLAVOR=<id>` to skip
-auto-detection.
+`OSCLASS_API_FLAVOR` in `.env.example`), picks the one that returns a
+valid JSON list response, and caches it in process memory. Once you know
+which one your install uses, you can pin it via `OSCLASS_API_FLAVOR=<id>`
+to skip auto-detection.
+
+The current default-tested flavor is **`osclasspoint`** — the
+[OsclassPoint "Rest API Osclass Plugin"](https://osclasspoint.com/osclass-plugins/seo-speed-admin/rest-api-osclass-plugin-i114)
+(folder name: `rest`, entry: `oc-content/plugins/rest/api.php`).
+Its scheme is:
+
+```
+GET <origin>/oc-content/plugins/rest/api.php
+    ?key=<API_KEY>
+    &type=read|insert|update|delete
+    &object=<resource>     (search, item, items, currencies, region, ...)
+    &action=<verb>         (items, latestItems, byId, byCategoryId, ...)
+    &<extra>               (itemId, categoryId, sCity, sPattern, ...)
+```
+
+with envelope `{ status, message, block_id, execution_seconds, response }`.
 
 ### Diagnostics
 

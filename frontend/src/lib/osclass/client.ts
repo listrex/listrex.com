@@ -328,7 +328,90 @@ const flavorAjaxOcRest: Flavor = {
   },
 };
 
+/**
+ * OsclassPoint "Rest API Osclass Plugin" (folder name: rest, file: api.php).
+ *
+ * URL shape:
+ *   <origin>/oc-content/plugins/rest/api.php
+ *     ?key=<apiKey>
+ *     &type=read|insert|update|delete
+ *     &object=<resource>          (search, item, items, currencies, region, ...)
+ *     &action=<verb>              (items, latestItems, premiumItems, byId, ...)
+ *     &<extra>                    (itemId, categoryId, sCity, sPattern, ...)
+ *
+ * Response envelope:
+ *   { "status": "OK"|"ERROR", "message": "...", "block_id": <int>,
+ *     "execution_seconds": "<float>", "response": <array|object> }
+ *
+ * Verified against admin.listrex.com (Osclass 8.3.1) — see docs.
+ */
+const flavorOsclassPoint: Flavor = {
+  id: "osclasspoint",
+  enabled: true,
+  build(op, cfg) {
+    const o = origin(cfg);
+    const u = new URL(`${o}/oc-content/plugins/rest/api.php`);
+    u.searchParams.set("key", cfg.apiKey);
+    switch (op.kind) {
+      case "listItems": {
+        u.searchParams.set("type", "read");
+        u.searchParams.set("object", "search");
+        u.searchParams.set("action", "items");
+        const pageSize = Math.min(op.pageSize ?? cfg.pageSize, 50);
+        if (op.query) u.searchParams.set("sPattern", op.query);
+        if (op.city) u.searchParams.set("sCity", op.city);
+        if (op.region) u.searchParams.set("sRegion", op.region);
+        const cat = op.categoryId ?? cfg.defaultCategoryId;
+        if (cat !== undefined) u.searchParams.set("sCategory", String(cat));
+        if (op.page !== undefined) u.searchParams.set("iPage", String(op.page));
+        u.searchParams.set("iPageSize", String(pageSize));
+        return { url: u, method: "GET", headers: { Accept: "application/json" } };
+      }
+      case "getItem": {
+        u.searchParams.set("type", "read");
+        u.searchParams.set("object", "item");
+        u.searchParams.set("action", "byId");
+        u.searchParams.set("itemId", String(op.id));
+        return { url: u, method: "GET", headers: { Accept: "application/json" } };
+      }
+      case "contactItem": {
+        // Plugin documents POST forms identical to bender theme; the
+        // contact-form handler isn't exposed in the public docs, so leave
+        // unimplemented and let the data layer fall back to mock delivery.
+        return null;
+      }
+      case "createItem": {
+        u.searchParams.set("type", "insert");
+        u.searchParams.set("object", "item");
+        u.searchParams.set("action", "add");
+        const form = new URLSearchParams();
+        const cat = op.categoryId ?? cfg.defaultCategoryId;
+        if (cat !== undefined) form.set("catId", String(cat));
+        form.set("title[en_US]", op.title);
+        form.set("description[en_US]", op.description);
+        form.set("price", String(op.price));
+        form.set("currency", op.currency);
+        form.set("cityName", op.city);
+        form.set("regionName", op.region);
+        form.set("contactName", op.contactName);
+        form.set("contactEmail", op.contactEmail);
+        form.set("showEmail", "0");
+        return {
+          url: u,
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: form.toString(),
+        };
+      }
+    }
+  },
+};
+
 const FLAVORS: Flavor[] = [
+  flavorOsclassPoint,
   flavorBase,
   rewriteFlavor(3),
   rewriteFlavor(2),
@@ -378,25 +461,55 @@ async function fetchOnce(req: BuiltRequest, timeoutMs = 7000): Promise<FetchResu
       signal: ctrl.signal,
     });
     const text = await res.text();
-    if (!res.ok) {
-      return { ok: false, status: res.status, reason: `HTTP ${res.status}`, text };
+    if (!text) {
+      if (!res.ok) return { ok: false, status: res.status, reason: `HTTP ${res.status}`, text };
+      return { ok: true, status: res.status, json: null, text };
     }
-    if (!text) return { ok: true, status: res.status, json: null, text };
     if (looksLikeHtml(text)) {
       return { ok: false, status: res.status, reason: "html-response", text };
     }
+    let json: unknown;
     try {
-      const json = JSON.parse(text);
-      return { ok: true, status: res.status, json, text };
+      json = JSON.parse(text);
     } catch {
+      if (!res.ok) return { ok: false, status: res.status, reason: `HTTP ${res.status}`, text };
       return { ok: false, status: res.status, reason: "non-json", text };
     }
+    // Some plugins (notably OsclassPoint's REST) return HTTP 404 with a
+    // valid JSON envelope `{ status: "OK", ... }` for empty results. Trust
+    // the envelope's status if it's present.
+    const envelopeStatus = readEnvelopeStatus(json);
+    if (envelopeStatus === "OK") {
+      return { ok: true, status: res.status, json, text };
+    }
+    if (envelopeStatus === "ERROR") {
+      const msg = readEnvelopeMessage(json) ?? "envelope-error";
+      return { ok: false, status: res.status, reason: msg, text };
+    }
+    if (!res.ok) return { ok: false, status: res.status, reason: `HTTP ${res.status}`, text };
+    return { ok: true, status: res.status, json, text };
   } catch (err) {
     const reason = err instanceof Error ? err.message : "fetch-failed";
     return { ok: false, status: 0, reason, text: "" };
   } finally {
     clearTimeout(t);
   }
+}
+
+function readEnvelopeStatus(json: unknown): "OK" | "ERROR" | undefined {
+  if (json && typeof json === "object" && "status" in json) {
+    const s = (json as { status?: unknown }).status;
+    if (s === "OK") return "OK";
+    if (s === "ERROR") return "ERROR";
+  }
+  return undefined;
+}
+function readEnvelopeMessage(json: unknown): string | undefined {
+  if (json && typeof json === "object" && "message" in json) {
+    const m = (json as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return undefined;
 }
 
 function looksLikeHtml(text: string): boolean {
@@ -419,8 +532,10 @@ function looksLikeOsclassPluginNotLoaded(text: string): boolean {
  */
 function looksLikeItemList(json: unknown): boolean {
   if (Array.isArray(json)) return true;
-  if (json && typeof json === "object" && Array.isArray((json as { data?: unknown }).data)) {
-    return true;
+  if (json && typeof json === "object") {
+    const obj = json as { data?: unknown; response?: unknown };
+    if (Array.isArray(obj.data)) return true;
+    if (Array.isArray(obj.response)) return true;
   }
   return false;
 }
@@ -466,18 +581,23 @@ async function ensureFlavor(cfg: OsclassConfig): Promise<Flavor> {
   throw new OsclassNoFlavorError(attempts);
 }
 
+export class OsclassUnsupportedOperationError extends Error {
+  constructor(flavor: string, op: string) {
+    super(`Flavor "${flavor}" does not implement operation "${op}"`);
+    this.name = "OsclassUnsupportedOperationError";
+  }
+}
+
 async function call(op: Operation): Promise<unknown> {
   const cfg = getOsclassConfig();
   if (!cfg) throw new OsclassNotConfiguredError();
   const flavor = await ensureFlavor(cfg);
   const built = flavor.build(op, cfg);
   if (!built) {
-    throw new OsclassApiError(0, `Flavor ${flavor.id} cannot build operation ${op.kind}`);
+    throw new OsclassUnsupportedOperationError(flavor.id, op.kind);
   }
   const result = await fetchOnce(built, 10_000);
   if (!result.ok) {
-    // If the previously-good flavor stopped working, drop the cache so the
-    // next request re-probes (e.g. plugin was reconfigured).
     if (flavorCache?.kind === "ok" && flavorCache.flavorId === flavor.id) {
       flavorCache = null;
     }
@@ -486,10 +606,31 @@ async function call(op: Operation): Promise<unknown> {
   return result.json;
 }
 
-function unwrapList<T>(payload: OsclassListResponse<T>): T[] {
-  if (Array.isArray(payload)) return payload;
-  if (payload && Array.isArray(payload.data)) return payload.data;
+function unwrapList<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) return payload as T[];
+  if (payload && typeof payload === "object") {
+    const obj = payload as { data?: unknown; response?: unknown };
+    if (Array.isArray(obj.data)) return obj.data as T[];
+    if (Array.isArray(obj.response)) return obj.response as T[];
+  }
   return [];
+}
+
+function unwrapItem<T>(payload: unknown): T | undefined {
+  if (!payload || typeof payload !== "object") return payload as T | undefined;
+  const obj = payload as { data?: unknown; response?: unknown };
+  // OsclassPoint: { status, response: <object|array> } — pick first if list,
+  // otherwise the response object directly.
+  if (Array.isArray(obj.response)) {
+    return (obj.response[0] as T) ?? undefined;
+  }
+  if (obj.response && typeof obj.response === "object") {
+    return obj.response as T;
+  }
+  if (obj.data && typeof obj.data === "object") {
+    return obj.data as T;
+  }
+  return payload as T;
 }
 
 export const osclass = {
@@ -510,19 +651,19 @@ export const osclass = {
     page?: number;
     pageSize?: number;
   }): Promise<OsclassItem[]> {
-    const payload = (await call({ kind: "listItems", ...params })) as OsclassListResponse<OsclassItem>;
-    return unwrapList(payload);
+    const payload = await call({ kind: "listItems", ...params });
+    return unwrapList<OsclassItem>(payload);
   },
 
   async getItem(id: string | number): Promise<OsclassItem | undefined> {
     try {
-      const payload = (await call({ kind: "getItem", id })) as
-        | OsclassItem
-        | { data?: OsclassItem };
-      if (payload && typeof payload === "object" && "data" in payload && payload.data) {
-        return payload.data;
+      const payload = await call({ kind: "getItem", id });
+      const item = unwrapItem<OsclassItem>(payload);
+      // Empty-but-OK envelope (response: []) for a missing id should be 404.
+      if (!item || (typeof item === "object" && Object.keys(item as object).length === 0)) {
+        return undefined;
       }
-      return payload as OsclassItem;
+      return item;
     } catch (err) {
       if (err instanceof OsclassApiError && err.status === 404) return undefined;
       throw err;
@@ -547,12 +688,7 @@ export const osclass = {
     contactName: string;
     contactEmail: string;
   }): Promise<OsclassItem | undefined> {
-    const payload = (await call({ kind: "createItem", ...input })) as
-      | OsclassItem
-      | { data?: OsclassItem };
-    if (payload && typeof payload === "object" && "data" in payload && payload.data) {
-      return payload.data;
-    }
-    return payload as OsclassItem;
+    const payload = await call({ kind: "createItem", ...input });
+    return unwrapItem<OsclassItem>(payload);
   },
 };

@@ -57,7 +57,9 @@ export default async function ListingsPage({
 
       {listings.length === 0 ? (
         <p className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-[var(--muted)]">
-          No listings match your search.
+          {query
+            ? "No listings match your search."
+            : "No listings yet — check back soon."}
         </p>
       ) : (
         <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
