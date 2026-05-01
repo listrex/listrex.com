@@ -25,14 +25,21 @@ A  admin.listrex.com  -> YOUR_LINODE_IP
 A  api.listrex.com    -> YOUR_LINODE_IP
 ```
 
-For the first MVP, it is also acceptable to use:
+For the first MVP, it is also acceptable to use a single domain. In that case the
+admin and API live under their Osclass / backend native paths, not generic ones:
 
 ```text
-listrex.com/admin
-listrex.com/api
+listrex.com/oc-admin   Osclass admin (default Osclass admin path)
+listrex.com/api        Custom backend API
 ```
 
 Separate subdomains are cleaner once the app grows.
+
+> Note: Osclass mounts its admin panel at `/oc-admin/`, not `/admin`. Visiting
+> `/admin` will fall through Osclass's rewrite rules and render the public
+> homepage, which can look like the admin link is "broken" when it is actually
+> just the wrong URL. Always link to `/oc-admin/` (or
+> `https://admin.listrex.com/oc-admin/` on the subdomain setup).
 
 ## 3. SSH into the server
 
@@ -201,6 +208,17 @@ After installation:
 - Delete or secure installer files if Osclass asks.
 - Enable friendly URLs if desired.
 - Install the real-estate theme/plugins.
+
+The Osclass admin panel is reachable at:
+
+```text
+https://admin.listrex.com/oc-admin/
+```
+
+(or `https://listrex.com/oc-admin/` if you have not yet split the admin
+subdomain). It will redirect to `/oc-admin/index.php?page=login`. The bare
+`/admin` path is **not** an Osclass route — it will silently render the public
+homepage instead of the admin login.
 
 ## 11. Install the REST plugin
 
