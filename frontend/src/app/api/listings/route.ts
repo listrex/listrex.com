@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchListings } from "@/lib/data/listings";
+import { maybeDebug } from "@/lib/osclass/error";
 
 export const runtime = "nodejs";
 
@@ -16,7 +17,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ listings });
   } catch (err) {
     console.error("[/api/listings] search failed", err);
-    return NextResponse.json({ error: "Search failed" }, { status: 502 });
+    return NextResponse.json(
+      { error: "Search failed", ...maybeDebug(err) },
+      { status: 502 }
+    );
   }
 }
 

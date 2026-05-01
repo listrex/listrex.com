@@ -36,6 +36,15 @@ npm run lint
 If `OSCLASS_API_BASE_URL` and `OSCLASS_API_KEY` are not set, the app falls
 back to the built-in mock listings so UI work is never blocked.
 
+### Diagnostics
+
+`GET /api/osclass/health` reports whether Osclass is configured, the
+configured host (no key leakage), and the result of one minimal upstream
+call. Set `OSCLASS_DEBUG=1` on the server to also include the upstream
+status code and a short body excerpt in error responses from
+`/api/listings*` and `/api/osclass/health`. Leave it unset in normal
+production traffic.
+
 ## Routes (MVP)
 
 | Path                                  | Purpose                                              |

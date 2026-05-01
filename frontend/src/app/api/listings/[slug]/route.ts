@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getListing } from "@/lib/data/listings";
+import { maybeDebug } from "@/lib/osclass/error";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,9 @@ export async function GET(
     return NextResponse.json({ listing });
   } catch (err) {
     console.error("[/api/listings/:slug] failed", err);
-    return NextResponse.json({ error: "Lookup failed" }, { status: 502 });
+    return NextResponse.json(
+      { error: "Lookup failed", ...maybeDebug(err) },
+      { status: 502 }
+    );
   }
 }
