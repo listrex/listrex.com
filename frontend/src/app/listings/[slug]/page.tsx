@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContactForm } from "@/components/listings/contact-form";
-import { getListingBySlug } from "@/lib/data/mock-listings";
+import { getListing } from "@/lib/data/listings";
 
 type Params = Promise<{ slug: string }>;
 
@@ -16,17 +16,21 @@ function formatPrice(price: number, currency: string) {
 
 export async function generateMetadata({ params }: { params: Params }) {
   const { slug } = await params;
-  const listing = getListingBySlug(slug);
-  if (!listing) return { title: "Not found" };
-  return {
-    title: listing.title,
-    description: listing.description.slice(0, 160),
-  };
+  try {
+    const listing = await getListing(slug);
+    if (!listing) return { title: "Not found" };
+    return {
+      title: listing.title,
+      description: listing.description.slice(0, 160),
+    };
+  } catch {
+    return { title: "Listing" };
+  }
 }
 
 export default async function ListingDetailPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const listing = getListingBySlug(slug);
+  const listing = await getListing(slug);
   if (!listing) notFound();
 
   return (
@@ -80,7 +84,7 @@ export default async function ListingDetailPage({ params }: { params: Params }) 
         </div>
 
         <aside className="lg:sticky lg:top-6">
-          <ContactForm listingTitle={listing.title} />
+          <ContactForm listingTitle={listing.title} listingSlug={listing.slug} />
         </aside>
       </div>
     </div>

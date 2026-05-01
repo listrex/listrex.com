@@ -9,8 +9,7 @@ export default function NewListingPage() {
         List a property
       </h1>
       <p className="mt-2 text-[var(--muted)]">
-        Starter form for the create/edit listing flow. Protect this route when auth is connected;
-        submit to your API which talks to Osclass on the server.
+        Tell buyers about your property. You can edit or remove it anytime from your account.
       </p>
       <form className="mt-8 space-y-5" action="#" method="post">
         <div>

@@ -9,8 +9,7 @@ export default function HomePage() {
             Find your next home
           </p>
           <p className="mt-4 max-w-xl text-lg text-[var(--muted)]">
-            Search listings, compare details, and reach sellers. This app is wired for a custom API
-            layer in front of Osclass.
+            Search listings, compare details, and reach sellers directly.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -30,21 +29,21 @@ export default function HomePage() {
       </section>
       <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
         <h2 className="font-[family-name:var(--font-display)] text-2xl font-medium text-[var(--foreground)]">
-          What you can build here
+          How Listrex works
         </h2>
         <ul className="mt-6 grid gap-4 sm:grid-cols-3">
           {[
             {
-              title: "Search & filters",
-              body: "Result cards and query params ready to map to your search API.",
+              title: "Search homes",
+              body: "Filter by city, area, and keywords to find places that match what you want.",
             },
             {
-              title: "Listing detail + lead form",
-              body: "Gallery, facts, and contact UI—swap in POST to your backend when live.",
+              title: "Talk to sellers",
+              body: "Send a message straight from the listing — no extra accounts, no middlemen.",
             },
             {
-              title: "Publish flow",
-              body: "Starter form for sellers; authenticate and validate on the API side.",
+              title: "List your property",
+              body: "Publish your home in minutes and manage it from your account.",
             },
           ].map((item) => (
             <li

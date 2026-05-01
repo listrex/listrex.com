@@ -12,6 +12,14 @@ Web or mobile client
         -> MariaDB/MySQL
 ```
 
+In the current MVP, the "custom backend API" role is played by the Next.js
+server itself: server components and route handlers under `/api/*` hold the
+Osclass API key and call the REST plugin on the server. See
+[`frontend/README.md`](../frontend/README.md) for the env vars and the files
+that implement the integration. A standalone backend service can be split out
+later without changing the public `/api/*` shape consumed by the frontend or
+mobile clients.
+
 ## Why this setup
 
 The Osclass REST plugin is useful as a private bridge into Osclass, but it should not be called directly from a public frontend. The plugin uses shared API keys and does not provide user-level authorization for every action.

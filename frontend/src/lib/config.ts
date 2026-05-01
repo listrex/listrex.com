@@ -1,8 +1,8 @@
 /**
- * Base URL for the custom backend API (see docs/architecture.md).
- * Set in `.env.local` as NEXT_PUBLIC_API_URL=https://api.example.com
+ * Public site configuration. Anything secret (Osclass API key, etc.) lives
+ * in `src/lib/osclass/env.ts` and is only ever read on the server.
  */
-export function getPublicApiBaseUrl(): string | undefined {
-  const url = process.env.NEXT_PUBLIC_API_URL;
+export function getPublicSiteUrl(): string | undefined {
+  const url = process.env.NEXT_PUBLIC_SITE_URL;
   return url && url.length > 0 ? url.replace(/\/$/, "") : undefined;
 }
